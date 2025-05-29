@@ -177,7 +177,7 @@
         <div id="result"></div>
     </div>
     <footer class="copyright-footer">
-        <p>Copyright © 2025 陳冠健. All rights reserved.</p>
+        <p>Copyright © 2025 陳. All rights reserved.</p>
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <script>
@@ -185,7 +185,7 @@
         var gk_xlsxFileLookup = {};
         var gk_fileData = {};
         function filledCell(cell) {
-          return cell !== '' && cell != null;
+            return cell !== '' && cell != null;
         }
         function loadFileData(filename) {
             if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
@@ -196,10 +196,10 @@
                     var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
                     var filteredData = jsonData.filter(row => row.some(filledCell));
                     var headerRowIndex = filteredData.findIndex((row, index) =>
-                      row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
                     );
                     if (headerRowIndex === -1 || headerRowIndex > 25) {
-                      headerRowIndex = 0;
+                        headerRowIndex = 0;
                     }
                     var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
                     csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
@@ -425,33 +425,87 @@
                 }
             }
 
-            const combinedPeriods = generateAllCombinations(availablePeriods, borrowDetails.length, borrowDetails);
-            displayResult(borrowDetails, combinedPeriods, borrowTeacher, lendTeacher, className);
+            const combinedPeriods = generateAllCombinations(availablePeriods, borrowDetails.length, borrowDetails, borrowTeacherRow, className);
+            displayResult(borrowDetails, combinedPeriods, borrowTeacher, lendTeacher, className, borrowTeacherRow);
         }
 
-        function generateAllCombinations(periods, borrowCount, borrowDetails) {
+        function getConsecutiveBlocks(teacherRow, className, day) {
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const blocks = [];
+            let currentBlock = [];
+
+            for (let period = 1; period <= 10; period++) {
+                const column = getColumnForDayAndPeriod(day, period);
+                const cell = sheet[XLSX.utils.encode_cell({c: column, r: teacherRow})];
+                if (cell && cell.v === className) {
+                    currentBlock.push(period);
+                } else {
+                    if (currentBlock.length > 1) {
+                        blocks.push(currentBlock);
+                    }
+                    currentBlock = [];
+                }
+            }
+            if (currentBlock.length > 1) {
+                blocks.push(currentBlock);
+            }
+            return blocks;
+        }
+
+        function isPartOfConsecutiveBlock(period, blocks) {
+            return blocks.some(block => block.includes(period));
+        }
+
+        function generateAllCombinations(periods, borrowCount, borrowDetails, borrowTeacherRow, className) {
             periods.sort((a, b) => a.day - b.day || a.period - b.period);
+            const singlePeriods = [];
+            const consecutivePairs = [];
             const combinations = [];
+
             const isBorrowDouble = borrowCount === 2 && borrowDetails[0].day === borrowDetails[1].day && borrowDetails[0].period + 1 === borrowDetails[1].period;
 
+            const dayBlocks = {};
+            for (let day = 1; day <= 6; day++) {
+                dayBlocks[day] = getConsecutiveBlocks(borrowTeacherRow, className, day);
+            }
+
+            periods.forEach(p => {
+                if (!isPartOfConsecutiveBlock(p.period, dayBlocks[p.day])) {
+                    singlePeriods.push(p);
+                }
+            });
+
+            for (let i = 0; i < periods.length - 1; i++) {
+                if (periods[i].day === periods[i + 1].day && periods[i].period + 1 === periods[i + 1].period) {
+                    consecutivePairs.push([periods[i], periods[i + 1]]);
+                }
+            }
+
             if (borrowCount === 1) {
-                periods.forEach(p => combinations.push([{day: p.day, periods: [p.period]}]));
+                singlePeriods.forEach(p => combinations.push([{day: p.day, periods: [p.period], isConsecutive: false}]));
+                periods.forEach(p => {
+                    if (isPartOfConsecutiveBlock(p.period, dayBlocks[p.day])) {
+                        combinations.push([{day: p.day, periods: [p.period], isConsecutive: true}]);
+                    }
+                });
             } else if (borrowCount === 2) {
                 if (isBorrowDouble) {
-                    for (let i = 0; i < periods.length - 1; i++) {
-                        if (periods[i].day === periods[i + 1].day && periods[i].period + 1 === periods[i + 1].period) {
-                            combinations.push([{day: periods[i].day, periods: [periods[i].period, periods[i + 1].period]}]);
-                        }
-                    }
+                    consecutivePairs.forEach(pair => {
+                        combinations.push([{day: pair[0].day, periods: [pair[0].period, pair[1].period], isConsecutive: true}]);
+                    });
                 }
                 const singleCombinations = [];
                 const combineSingle = (start, current) => {
                     if (current.length === 2) {
-                        singleCombinations.push(current.map(p => ({day: p.day, periods: [p.period]})));
+                        singleCombinations.push(current.map(p => ({
+                            day: p.day,
+                            periods: [p.period],
+                            isConsecutive: isPartOfConsecutiveBlock(p.period, dayBlocks[p.day])
+                        })));
                         return;
                     }
-                    for (let i = start; i < periods.length; i++) {
-                        combineSingle(i + 1, [...current, periods[i]]);
+                    for (let i = start; i < singlePeriods.length; i++) {
+                        combineSingle(i + 1, [...current, singlePeriods[i]]);
                     }
                 };
                 combineSingle(0, []);
@@ -478,9 +532,9 @@
             return 2 + dayOffset + period - 1;
         }
 
-        function formatPeriods(periods) {
+        function formatPeriods(periods, isConsecutive) {
             if (periods.length === 1) {
-                return `第${periods[0]}節`;
+                return `第${periods[0]}節${isConsecutive ? '（連堂）' : ''}`;
             } else if (periods.length === 2 && periods[0] + 1 === periods[1]) {
                 return `第${periods[0]}至${periods[1]}節`;
             } else {
@@ -488,23 +542,28 @@
             }
         }
 
-        function displayResult(borrowDetails, availableCombinations, borrowTeacher, lendTeacher, className) {
+        function displayResult(borrowDetails, availableCombinations, borrowTeacher, lendTeacher, className, borrowTeacherRow) {
             const resultDiv = document.getElementById('result');
             let html = '<h2>調堂詳情：</h2><table><tr><th>借出老師</th><th>班別</th><th>借出上課日</th><th>借出課節</th><th class="double-border">借入老師</th><th>歸還上課日</th><th>歸還課節</th></tr>';
 
             const borrowDay = borrowDetails[0].day;
             const borrowPeriods = borrowDetails.map(b => b.period).sort((a, b) => a - b);
-            const borrowPeriodStr = formatPeriods(borrowPeriods);
+            const borrowPeriodStr = formatPeriods(borrowPeriods, false);
+
+            const dayBlocks = {};
+            for (let day = 1; day <= 6; day++) {
+                dayBlocks[day] = getConsecutiveBlocks(borrowTeacherRow, className, day);
+            }
 
             availableCombinations.forEach(comb => {
                 let availDayStr = '';
                 let availPeriodStr = '';
                 if (comb.length === 1 && comb[0].periods.length === 2) {
                     availDayStr = `DAY${comb[0].day}`;
-                    availPeriodStr = formatPeriods(comb[0].periods);
+                    availPeriodStr = formatPeriods(comb[0].periods, comb[0].isConsecutive);
                 } else {
                     availDayStr = comb.map(c => `DAY${c.day}`).join(', ');
-                    availPeriodStr = comb.map(c => formatPeriods(c.periods)).join(', ');
+                    availPeriodStr = comb.map(c => formatPeriods(c.periods, c.isConsecutive)).join(', ');
                 }
                 if (!(availDayStr === `DAY${borrowDay}` && availPeriodStr === borrowPeriodStr)) {
                     html += `<tr><td>${lendTeacher}</td><td>${className}</td><td>DAY${borrowDay}</td><td>${borrowPeriodStr}</td><td class="double-border">${borrowTeacher}</td><td>${availDayStr}</td><td>${availPeriodStr}</td></tr>`;
