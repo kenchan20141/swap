@@ -1,4 +1,3 @@
-
 <script type="text/javascript">
         var gk_isXlsx = false;
         var gk_xlsxFileLookup = {};
@@ -44,190 +43,109 @@
     <meta charset="UTF-8">
     <title>調堂工具</title>
 
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
-
+        
     <style>
-      body {
-    font-family: 'Noto Serif TC', 'cwTeXHei', 'cwTeXFangSong', 'cwTeXKai', 'cwTeXMing', 'PingFang TC', 'Microsoft JhengHei', serif;
-    margin: 20px;
-    background-color: #f5f5f5;
-    background-image: url('https://i.ibb.co/MycJHMJG/image.png');
-    background-size: cover;
-    background-repeat: no-repeat;
-}
-
-h1 {
-    text-align: center;
-    color: #333;
-}
-
-.container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 20px;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    opacity: 0.87;
-}
-
-.form-group {
-    margin-bottom: 15px;
-}
-
-label {
+        body {
+            font-family: 'Noto Serif TC', 'cwTeXHei', 'cwTeXFangSong', 'cwTeXKai', 'cwTeXMing', 'PingFang TC', 'Microsoft JhengHei', serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+            background-image: url('https://i.ibb.co/MycJHMJG/image.png');
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            opacity: 0.87;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+       label {
     display: inline-block;
     width: 120px;
     font-weight: bold;
     color: #555;
+    font-size: 18px;  /* 新增這一行 */
 }
-
-select, input[type="file"] {
-    padding: 5px;
-    width: 200px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-button {
-    padding: 8px 20px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: #45a049;
-}
-
-#result, #scheduleTable {
-    margin-top: 20px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: #fafafa;
-    overflow-x: auto; /* 允許水平滾動 */
-}
-
-#result h2, #scheduleTable h2 {
-    color: #333;
-    font-size: 18px;
-}
-
-#result table, #scheduleTable table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-#result th, #result td, #scheduleTable th, #scheduleTable td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: center;
-    min-width: 50px;
-    min-height: 30px;
-}
-
-#result th, #scheduleTable th {
-    background-color: #f2f2f2;
-}
-
-.double-border {
-    border-left: 3px double #000;
-}
-
-.copyright-footer {
-    position: fixed;
-    bottom: 0;
-    right: 0;
-    padding: 5px 10px;
-    background-color: #f1f1f1;
-}
-
-.copyright-footer p {
-    margin: 0;
-    font-size: 14px;
-}
-
-/* 響應式設計 */
-
-/* 螢幕寬度小於768px（平板設備） */
-@media (max-width: 768px) {
-    .container {
-        padding: 15px;
-    }
-    
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    label {
-        width: auto;
-        margin-bottom: 5px;
-    }
-    
-    select, input[type="file"] {
-        width: 100%;
-    }
-    
-    #result table, #scheduleTable table {
-        font-size: 14px;
-    }
-    
-    #result th, #result td, #scheduleTable th, #scheduleTable td {
-        padding: 6px;
-    }
-    
-    .copyright-footer p {
-        font-size: 12px;
-    }
-}
-
-/* 螢幕寬度小於480px（手機設備） */
-@media (max-width: 480px) {
-    .container {
-        padding: 10px;
-    }
-    
-    h1 {
-        font-size: 24px;
-    }
-    
-    .form-group {
-        margin-bottom: 10px;
-    }
-    
-    select, input[type="file"] {
-        padding: 8px;
-    }
-    
-    button {
-        width: 100%;
-        padding: 10px;
-    }
-    
-    #result, #scheduleTable {
-        padding: 5px;
-    }
-    
-    #result table, #scheduleTable table {
-        font-size: 12px;
-    }
-    
-    #result th, #result td, #scheduleTable th, #scheduleTable td {
-        padding: 4px;
-    }
-    
-    .copyright-footer p {
-        font-size: 10px;
-    }
-}
+        select, input[type="file"] {
+            padding: 5px;
+            width: 200px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        #result h2, #scheduleTable h2 {
+            color: #333;
+            font-size: 18px;
+        }
+        #result table, #scheduleTable table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #result th, #result td, #scheduleTable th, #scheduleTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            width: 50px;
+            height: 30px;
+            min-width: 50px;
+            min-height: 30px;
+        }
+        #result th, #scheduleTable th {
+            background-color: #f2f2f2;
+        }
+        #scheduleTable {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        .double-border {
+            border-left: 3px double #000;
+        }
+        .copyright-footer {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            padding: 5px 10px;
+            background-color: #f1f1f1;
+        }
+        .copyright-footer p {
+            margin: 0;
+            font-size: 14px;
+        }
+        @media (max-width: 600px) {
+            .copyright-footer p {
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
