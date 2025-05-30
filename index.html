@@ -1,3 +1,5 @@
+
+
 <script type="text/javascript">
         var gk_isXlsx = false;
         var gk_xlsxFileLookup = {};
@@ -328,67 +330,72 @@
             document.getElementById('scheduleTable').innerHTML = html;
         }
 
-        function updateBorrowDays() {
-            const lendTeacher = document.getElementById('lendTeacher').value;
-            const className = document.getElementById('className').value;
-            if (!lendTeacher || !className) return;
+       function updateBorrowDays() {
+    const lendTeacher = document.getElementById('lendTeacher').value;
+    const borrowTeacher = document.getElementById('borrowTeacher').value; // 新增：獲取借入老師
+    const className = document.getElementById('className').value;
+    if (!lendTeacher || !borrowTeacher || !className) return;
 
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const lendTeacherRow = findTeacherRow(lendTeacher);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const lendTeacherRow = findTeacherRow(lendTeacher);
+    const borrowTeacherRow = findTeacherRow(borrowTeacher); // 新增：查找借入老師的行
 
-            const borrowDaySelect = document.getElementById('borrowDay');
-            borrowDaySelect.innerHTML = '';
+    const borrowDaySelect = document.getElementById('borrowDay');
+    borrowDaySelect.innerHTML = '';
 
-            for (let day = 1; day <= 6; day++) {
-                let hasBorrowPeriod = false;
-                for (let period = 1; period <= 10; period++) {
-                    const column = getColumnForDayAndPeriod(day, period);
-                    const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
-                    if (lendCell && lendCell.v === className) {
-                        hasBorrowPeriod = true;
-                        break;
-                    }
-                }
-                if (hasBorrowPeriod) {
-                    const option = document.createElement('option');
-                    option.value = day;
-                    option.text = `DAY${day}`;
-                    borrowDaySelect.add(option);
-                }
-            }
-
-            if (borrowDaySelect.options.length > 0) {
-                borrowDaySelect.selectedIndex = 0;
-                updateBorrowPeriods();
-            } else {
-                document.getElementById('borrowPeriod').innerHTML = '';
+    for (let day = 1; day <= 6; day++) {
+        let hasBorrowPeriod = false;
+        for (let period = 1; period <= 10; period++) {
+            const column = getColumnForDayAndPeriod(day, period);
+            const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
+            const borrowCell = sheet[XLSX.utils.encode_cell({c: column, r: borrowTeacherRow})]; // 新增：檢查借入老師的課表單元格
+            if (lendCell && lendCell.v === className && (!borrowCell || !borrowCell.v)) { // 修改條件
+                hasBorrowPeriod = true;
+                break;
             }
         }
-
-        function updateBorrowPeriods() {
-            const borrowDay = document.getElementById('borrowDay').value;
-            const lendTeacher = document.getElementById('lendTeacher').value;
-            const className = document.getElementById('className').value;
-            if (!borrowDay || !lendTeacher || !className) return;
-
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const lendTeacherRow = findTeacherRow(lendTeacher);
-
-            const borrowPeriodSelect = document.getElementById('borrowPeriod');
-            borrowPeriodSelect.innerHTML = '';
-
-            for (let period = 1; period <= 10; period++) {
-                const column = getColumnForDayAndPeriod(borrowDay, period);
-                const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
-                if (lendCell && lendCell.v === className) {
-                    const option = document.createElement('option');
-                    option.value = period;
-                    option.text = `第${period}節`;
-                    borrowPeriodSelect.add(option);
-                }
-            }
+        if (hasBorrowPeriod) {
+            const option = document.createElement('option');
+            option.value = day;
+            option.text = `DAY${day}`;
+            borrowDaySelect.add(option);
         }
+    }
 
+    if (borrowDaySelect.options.length > 0) {
+        borrowDaySelect.selectedIndex = 0;
+        updateBorrowPeriods();
+    } else {
+        document.getElementById('borrowPeriod').innerHTML = '';
+    }
+}
+
+      function updateBorrowPeriods() {
+    const borrowDay = document.getElementById('borrowDay').value;
+    const lendTeacher = document.getElementById('lendTeacher').value;
+    const borrowTeacher = document.getElementById('borrowTeacher').value; // 新增：獲取借入老師
+    const className = document.getElementById('className').value;
+    if (!borrowDay || !lendTeacher || !borrowTeacher || !className) return;
+
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const lendTeacherRow = findTeacherRow(lendTeacher);
+    const borrowTeacherRow = findTeacherRow(borrowTeacher); // 新增：查找借入老師的行
+
+    const borrowPeriodSelect = document.getElementById('borrowPeriod');
+    borrowPeriodSelect.innerHTML = '';
+
+    for (let period = 1; period <= 10; period++) {
+        const column = getColumnForDayAndPeriod(borrowDay, period);
+        const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
+        const borrowCell = sheet[XLSX.utils.encode_cell({c: column, r: borrowTeacherRow})]; // 新增：檢查借入老師的課表單元格
+        if (lendCell && lendCell.v === className && (!borrowCell || !borrowCell.v)) { // 修改條件
+            const option = document.createElement('option');
+            option.value = period;
+            option.text = `第${period}節`;
+            borrowPeriodSelect.add(option);
+        }
+    }
+}
         function processData() {
             const borrowTeacher = document.getElementById('borrowTeacher').value;
             const lendTeacher = document.getElementById('lendTeacher').value;
