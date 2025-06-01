@@ -1,591 +1,1435 @@
-
-
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>調堂工具</title>
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
-        
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body {
-            font-family: 'Noto Serif TC', 'cwTeXHei', 'cwTeXFangSong', 'cwTeXKai', 'cwTeXMing', 'PingFang TC', 'Microsoft JhengHei', serif;
-            margin: 20px;
-            background-color: #f5f5f5;
-            background-image: url('https://i.ibb.co/MycJHMJG/image.png');
-            background-size: cover;
-            background-repeat: no-repeat;
+            font-family: 'Noto Serif TC', serif;
+            background: linear-gradient(135deg, #45b39d 0%, #764ba2 100%);
+            min-height: 100vh;
         }
-        h1 {
-            text-align: center;
-            color: #333;
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
         }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #fff;
+        .chain-node {
+            position: relative;
+            transition: all 0.3s ease;
+            display: inline-block;
+            margin: 0 5px;
+        }
+        .chain-node:hover {
+            transform: scale(1.05);
+        }
+        .chain-arrow {
+            color: #4f46e5;
+            font-size: 1.2rem;
+            margin: 0 10px;
+        }
+        .schedule-cell {
+            min-width: 40px;
+            max-width: 60px;
+            word-wrap: break-word;
+            font-size: 0.75rem;
+        }
+        .conflict-highlight {
+            background-color: #fecaca !important;
+            border: 2px solid #dc2626;
+        }
+        .available-highlight {
+            background-color: #bbf7d0 !important;
+            border: 2px solid #16a34a;
+        }
+        .exchange-flow {
+            background: linear-gradient(90deg, #e0f2fe 0%, #f3e5f5 100%);
+            border-left: 4px solid #2196f3;
+            margin: 10px 0;
+            padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            opacity: 0.87;
         }
-        .form-group {
-            margin-bottom: 15px;
+        .teacher-box {
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px;
+            display: inline-block;
+            min-width: 120px;
+            text-align: center;
         }
-       label {
-    display: inline-block;
-    width: 120px;
-    font-weight: bold;
-    color: #555;
-    font-size: 20px;  /* 新增這一行 */
-}
-        select, input[type="file"] {
-            padding: 5px;
-            width: 200px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+        .direct-exchange {
+            color: #16a34a;
+            font-weight: bold;
         }
-        button {
-            padding: 8px 20px;
-            background-color: #4CAF50;
+        .cycle-exchange {
+            color: #2563eb;
+            font-weight: bold;
+        }
+        .schedule-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            z-index: 1000;
+            overflow: auto;
+        }
+        .schedule-modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 90%;
+            max-height: 80%;
+            overflow: auto;
+        }
+        .view-schedule-icon {
+            background: #3b82f6;
             color: white;
             border: none;
-            border-radius: 4px;
+            padding: 6px 8px;
+            border-radius: 5px;
             cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 10px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        button:hover {
-            background-color: #45a049;
+        .view-schedule-icon:hover {
+            background: #2563eb;
+            transform: scale(1.05);
         }
-        #result {
-            margin-top: 20px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #fafafa;
+        .consecutive-period {
+            background: linear-gradient(45deg, #fbbf24, #f59e0b);
+            color: white;
+            font-weight: bold;
         }
-        #result h2, #scheduleTable h2 {
-            color: #333;
-            font-size: 18px;
-        }
-        #result table, #scheduleTable table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        #result th, #result td, #scheduleTable th, #scheduleTable td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
-            width: 50px;
-            height: 30px;
-            min-width: 50px;
-            min-height: 30px;
-        }
-        #result th, #scheduleTable th {
-            background-color: #f2f2f2;
-        }
-        #scheduleTable {
-            margin-top: 20px;
-            overflow-x: auto;
-        }
-        .double-border {
-            border-left: 3px double #000;
-        }
-        .copyright-footer {
-            position: fixed;
-            bottom: 0;
-            right: 0;
-            padding: 5px 10px;
-            background-color: #f1f1f1;
-        }
-        .copyright-footer p {
-            margin: 0;
-            font-size: 14px;
-        }
-        @media (max-width: 600px) {
-            .copyright-footer p {
-                font-size: 12px;
+        @media print {
+            body { 
+                background: white !important; 
+                -webkit-print-color-adjust: exact;
+            }
+            .no-print { display: none !important; }
+            .schedule-modal { display: none !important; }
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.9) !important;
+                backdrop-filter: none !important;
+                border: 1px solid #ddd !important;
             }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>調堂工具</h1>
-        <div class="form-group">
-            <input type="file" id="upload" accept=".xlsx, .xls">
+<body class="p-4">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="glass-effect rounded-lg p-6 mb-6">
+            <h1 class="text-3xl font-bold text-white text-center mb-2">
+                <i class="fas fa-calendar-alt mr-3"></i>調堂工具
+            </h1>
+          
         </div>
-        <form id="inputForm">
-            <div class="form-group">
-                <label for="borrowTeacher">借入老師：</label>
-                <select id="borrowTeacher"></select>
+
+        <!-- File Upload Section -->
+        <div class="glass-effect rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-white mb-4">
+                <i class="fas fa-upload mr-2"></i>上傳課表檔案
+            </h2>
+            <input type="file" id="upload" accept=".xlsx,.xls" 
+                   class="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg bg-white bg-opacity-90 hover:bg-opacity-100 transition-all">
+        </div>
+
+        <!-- Main Controls -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Basic Settings -->
+            <div class="glass-effect rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">
+                    <i class="fas fa-cogs mr-2"></i>基本設定
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-white text-sm font-medium mb-2">初始借入老師：</label>
+                        <select id="borrowTeacher" class="w-full p-2 rounded-md border border-gray-300 bg-white">
+                            <option value="">請選擇老師</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-white text-sm font-medium mb-2">借出老師：</label>
+                        <select id="lendTeacher" class="w-full p-2 rounded-md border border-gray-300 bg-white">
+                            <option value="">請選擇老師</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-white text-sm font-medium mb-2">班別：</label>
+                        <select id="className" class="w-full p-2 rounded-md border border-gray-300 bg-white">
+                            <option value="">請選擇班別</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-white text-sm font-medium mb-2">借用日期：</label>
+                        <select id="borrowDay" class="w-full p-2 rounded-md border border-gray-300 bg-white">
+                            <option value="">請選擇日期</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-white text-sm font-medium mb-2">借用課節：</label>
+                        <select id="borrowPeriod" multiple class="w-full p-2 rounded-md border border-gray-300 bg-white h-20">
+                        </select>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="lendTeacher">借出老師：</label>
-                <select id="lendTeacher"></select>
+
+            <!-- Analysis Options -->
+            <div class="glass-effect rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">
+                    <i class="fas fa-search mr-2"></i>調堂分析
+                </h2>
+                <div class="space-y-4">
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4">
+                        <h3 class="text-white font-medium mb-2">系統功能：</h3>
+                        <div class="space-y-2 text-sm text-gray-200">
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-400 mr-2"></i>
+                                <span>直接調堂（兩位老師）</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-400 mr-2"></i>
+                                <span>循環調堂（3-4位老師）</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check text-green-400 mr-2"></i>
+                                <span>連堂優先歸還邏輯</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="analyzeBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-search mr-2"></i>開始分析調堂方案
+                    </button>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="className">班別：</label>
-                <select id="className"></select>
+        </div>
+
+        <!-- Teachers Schedule Display -->
+        <div id="scheduleDisplay" class="glass-effect rounded-lg p-6 mb-6 hidden">
+            <h2 class="text-xl font-semibold text-white mb-4">
+                <i class="fas fa-table mr-2"></i>相關老師課表
+            </h2>
+            <div class="overflow-x-auto">
+                <div id="scheduleTable"></div>
             </div>
-            <div class="form-group">
-                <label for="borrowDay">上課日：</label>
-                <select id="borrowDay"></select>
+        </div>
+
+        <!-- Analysis Results -->
+        <div id="analysisResults" class="space-y-6 hidden">
+            <!-- Chain Solutions -->
+            <div class="glass-effect rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">
+                    <i class="fas fa-route mr-2"></i>調堂方案
+                </h2>
+                <div id="chainSolutions" class="space-y-4"></div>
             </div>
-            <div class="form-group">
-                <label for="borrowPeriod">借用課節：</label>
-                <select id="borrowPeriod" multiple></select>
+
+            <!-- Conflict Analysis -->
+            <div class="glass-effect rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>衝突分析
+                </h2>
+                <div id="conflictAnalysis"></div>
             </div>
-            <div class="form-group">
-                <button type="button" id="submit">提交</button>
+
+            <!-- Detailed Results Table -->
+            <div class="glass-effect rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">
+                    <i class="fas fa-list-alt mr-2"></i>詳細調堂記錄
+                </h2>
+                <div class="overflow-x-auto">
+                    <div id="detailedResults"></div>
+                </div>
             </div>
-        </form>
-        <div id="scheduleTable"></div>
-        <div id="result"></div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center text-white opacity-75 mt-8 text-sm">
+            <p>Copyright © 2025 陳冠健、周錦濤. All rights reserved.</p>
+        </footer>
     </div>
-    <footer class="copyright-footer">
-        <p>Copyright © 2025 陳冠健. All rights reserved.</p>
-    </footer>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+
+    <!-- Schedule Modal -->
+    <div id="scheduleModal" class="schedule-modal">
+        <div class="schedule-modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">相關老師課表</h3>
+                <button onclick="closeScheduleModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times fa-lg"></i>
+                </button>
+            </div>
+            <div id="modalScheduleContent"></div>
+        </div>
+    </div>
+
     <script>
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-            return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-                try {
-                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                    var firstSheetName = workbook.SheetNames[0];
-                    var worksheet = workbook.Sheets[firstSheetName];
-                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                    var filteredData = jsonData.filter(row => row.some(filledCell));
-                    var headerRowIndex = filteredData.findIndex((row, index) =>
-                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                    );
-                    if (headerRowIndex === -1 || headerRowIndex > 25) {
-                        headerRowIndex = 0;
-                    }
-                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
-                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                    return csv;
-                } catch (e) {
-                    console.error(e);
-                    return "";
-                }
-            }
-            return gk_fileData[filename] || "";
-        }
-
-        let workbook;
-        let teachers = [];
-        let classes = new Set();
-
-        document.getElementById('upload').addEventListener('change', handleFile);
-        document.getElementById('submit').addEventListener('click', processData);
-        document.getElementById('borrowTeacher').addEventListener('change', updateClassesAndSchedules);
-        document.getElementById('lendTeacher').addEventListener('change', updateClassesAndSchedules);
-        document.getElementById('className').addEventListener('change', updateBorrowDays);
-        document.getElementById('borrowDay').addEventListener('change', updateBorrowPeriods);
-
-        function handleFile(e) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                workbook = XLSX.read(data, {type: 'array'});
-                populateTeachersAndClasses();
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        function populateTeachersAndClasses() {
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const range = XLSX.utils.decode_range(sheet['!ref']);
-            
-            for (let row = 5; row <= range.e.r; row++) {
-                const teacherCell = sheet[XLSX.utils.encode_cell({c: 1, r: row})];
-                if (teacherCell && teacherCell.v) {
-                    teachers.push(teacherCell.v);
-                }
+        class AdvancedSchedulingTool {
+            constructor() {
+                this.workbook = null;
+                this.teachers = [];
+                this.classes = new Set();
+                this.scheduleData = {};
+                this.teacherRows = {};
+                this.initializeEventListeners();
             }
 
-            const borrowTeacherSelect = document.getElementById('borrowTeacher');
-            const lendTeacherSelect = document.getElementById('lendTeacher');
-            teachers.forEach(teacher => {
-                const option = document.createElement('option');
-                option.value = teacher;
-                option.text = teacher;
-                borrowTeacherSelect.add(option.cloneNode(true));
-                lendTeacherSelect.add(option);
-            });
-        }
-
-        function updateClassesAndSchedules() {
-            const borrowTeacher = document.getElementById('borrowTeacher').value;
-            const lendTeacher = document.getElementById('lendTeacher').value;
-            if (!borrowTeacher || !lendTeacher) return;
-
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const borrowTeacherRow = findTeacherRow(borrowTeacher);
-            const lendTeacherRow = findTeacherRow(lendTeacher);
-
-            const borrowClasses = new Set();
-            const lendClasses = new Set();
-
-            for (let col = 2; col <= 61; col++) {
-                const borrowCell = sheet[XLSX.utils.encode_cell({c: col, r: borrowTeacherRow})];
-                const lendCell = sheet[XLSX.utils.encode_cell({c: col, r: lendTeacherRow})];
-                if (borrowCell && borrowCell.v) borrowClasses.add(borrowCell.v);
-                if (lendCell && lendCell.v) lendClasses.add(lendCell.v);
+            initializeEventListeners() {
+                document.getElementById('upload').addEventListener('change', (e) => this.handleFile(e));
+                document.getElementById('analyzeBtn').addEventListener('click', () => this.analyzeScheduling());
+                document.getElementById('borrowTeacher').addEventListener('change', () => this.updateAvailableOptions());
+                document.getElementById('lendTeacher').addEventListener('change', () => this.updateAvailableOptions());
+                document.getElementById('className').addEventListener('change', () => this.updateBorrowDays());
+                document.getElementById('borrowDay').addEventListener('change', () => this.updateBorrowPeriods());
             }
 
-            const commonClasses = [...borrowClasses].filter(c => lendClasses.has(c)).sort();
-            const classSelect = document.getElementById('className');
-            classSelect.innerHTML = '';
-            commonClasses.forEach(className => {
-                const option = document.createElement('option');
-                option.value = className;
-                option.text = className;
-                classSelect.add(option);
-            });
+            handleFile(e) {
+                const file = e.target.files[0];
+                if (!file) return;
 
-            displaySchedules(borrowTeacher, lendTeacher, borrowTeacherRow, lendTeacherRow);
-            updateBorrowDays();
-        }
-
-        function displaySchedules(borrowTeacher, lendTeacher, borrowTeacherRow, lendTeacherRow) {
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            let html = '<h2>老師課表</h2><table><tr><th>老師</th>';
-            for (let day = 1; day <= 6; day++) {
-                html += `<th colspan="10">DAY${day}</th>`;
-            }
-            html += '</tr>';
-
-            html += `<tr><td>${borrowTeacher}</td>`;
-            for (let day = 1; day <= 6; day++) {
-                for (let period = 1; period <= 10; period++) {
-                    const column = getColumnForDayAndPeriod(day, period);
-                    const borrowCell = sheet[XLSX.utils.encode_cell({c: column, r: borrowTeacherRow})];
-                    const borrowClass = borrowCell ? borrowCell.v : '';
-                    html += `<td>${borrowClass}</td>`;
-                }
-            }
-            html += '</tr>';
-
-            html += `<tr><td>${lendTeacher}</td>`;
-            for (let day = 1; day <= 6; day++) {
-                for (let period = 1; period <= 10; period++) {
-                    const column = getColumnForDayAndPeriod(day, period);
-                    const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
-                    const lendClass = lendCell ? lendCell.v : '';
-                    html += `<td>${lendClass}</td>`;
-                }
-            }
-            html += '</tr></table>';
-
-            document.getElementById('scheduleTable').innerHTML = html;
-        }
-
-       function updateBorrowDays() {
-    const lendTeacher = document.getElementById('lendTeacher').value;
-    const borrowTeacher = document.getElementById('borrowTeacher').value; // 新增：獲取借入老師
-    const className = document.getElementById('className').value;
-    if (!lendTeacher || !borrowTeacher || !className) return;
-
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const lendTeacherRow = findTeacherRow(lendTeacher);
-    const borrowTeacherRow = findTeacherRow(borrowTeacher); // 新增：查找借入老師的行
-
-    const borrowDaySelect = document.getElementById('borrowDay');
-    borrowDaySelect.innerHTML = '';
-
-    for (let day = 1; day <= 6; day++) {
-        let hasBorrowPeriod = false;
-        for (let period = 1; period <= 10; period++) {
-            const column = getColumnForDayAndPeriod(day, period);
-            const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
-            const borrowCell = sheet[XLSX.utils.encode_cell({c: column, r: borrowTeacherRow})]; // 新增：檢查借入老師的課表單元格
-            if (lendCell && lendCell.v === className && (!borrowCell || !borrowCell.v)) { // 修改條件
-                hasBorrowPeriod = true;
-                break;
-            }
-        }
-        if (hasBorrowPeriod) {
-            const option = document.createElement('option');
-            option.value = day;
-            option.text = `DAY${day}`;
-            borrowDaySelect.add(option);
-        }
-    }
-
-    if (borrowDaySelect.options.length > 0) {
-        borrowDaySelect.selectedIndex = 0;
-        updateBorrowPeriods();
-    } else {
-        document.getElementById('borrowPeriod').innerHTML = '';
-    }
-}
-
-      function updateBorrowPeriods() {
-    const borrowDay = document.getElementById('borrowDay').value;
-    const lendTeacher = document.getElementById('lendTeacher').value;
-    const borrowTeacher = document.getElementById('borrowTeacher').value; // 新增：獲取借入老師
-    const className = document.getElementById('className').value;
-    if (!borrowDay || !lendTeacher || !borrowTeacher || !className) return;
-
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const lendTeacherRow = findTeacherRow(lendTeacher);
-    const borrowTeacherRow = findTeacherRow(borrowTeacher); // 新增：查找借入老師的行
-
-    const borrowPeriodSelect = document.getElementById('borrowPeriod');
-    borrowPeriodSelect.innerHTML = '';
-
-    for (let period = 1; period <= 10; period++) {
-        const column = getColumnForDayAndPeriod(borrowDay, period);
-        const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
-        const borrowCell = sheet[XLSX.utils.encode_cell({c: column, r: borrowTeacherRow})]; // 新增：檢查借入老師的課表單元格
-        if (lendCell && lendCell.v === className && (!borrowCell || !borrowCell.v)) { // 修改條件
-            const option = document.createElement('option');
-            option.value = period;
-            option.text = `第${period}節`;
-            borrowPeriodSelect.add(option);
-        }
-    }
-}
-        function processData() {
-            const borrowTeacher = document.getElementById('borrowTeacher').value;
-            const lendTeacher = document.getElementById('lendTeacher').value;
-            const className = document.getElementById('className').value;
-            const borrowDay = parseInt(document.getElementById('borrowDay').value);
-            const borrowPeriods = Array.from(document.getElementById('borrowPeriod').selectedOptions).map(option => parseInt(option.value));
-
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const lendTeacherRow = findTeacherRow(lendTeacher);
-            const borrowTeacherRow = findTeacherRow(borrowTeacher);
-
-            if (lendTeacherRow === -1 || borrowTeacherRow === -1) {
-                document.getElementById('result').innerText = '老師未找到';
-                return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const data = new Uint8Array(e.target.result);
+                    this.workbook = XLSX.read(data, {type: 'array'});
+                    this.parseScheduleData();
+                    this.populateTeachersAndClasses();
+                };
+                reader.readAsArrayBuffer(file);
             }
 
-            let borrowDetails = [];
-            borrowPeriods.forEach(period => {
-                const column = getColumnForDayAndPeriod(borrowDay, period);
-                const lendCell = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
-                if (lendCell && lendCell.v === className) {
-                    borrowDetails.push({day: borrowDay, period});
-                }
-            });
+            parseScheduleData() {
+                const sheet = this.workbook.Sheets[this.workbook.SheetNames[0]];
+                const range = XLSX.utils.decode_range(sheet['!ref']);
+                
+                this.teachers = [];
+                this.scheduleData = {};
+                this.teacherRows = {};
 
-            if (borrowDetails.length === 0) {
-                document.getElementById('result').innerText = '借用課節不符指定的班別';
-                return;
-            }
+                // Parse teachers and their schedules
+                for (let row = 5; row <= range.e.r; row++) {
+                    const teacherCell = sheet[XLSX.utils.encode_cell({c: 1, r: row})];
+                    if (teacherCell && teacherCell.v) {
+                        const teacher = teacherCell.v;
+                        this.teachers.push(teacher);
+                        this.teacherRows[teacher] = row;
+                        this.scheduleData[teacher] = {};
 
-            const availablePeriods = [];
-            for (let day = 1; day <= 6; day++) {
-                for (let period = 1; period <= 10; period++) {
-                    const column = getColumnForDayAndPeriod(day, period);
-                    const borrowCell = sheet[XLSX.utils.encode_cell({c: column, r: borrowTeacherRow})];
-                    const lendCellCheck = sheet[XLSX.utils.encode_cell({c: column, r: lendTeacherRow})];
-                    if (borrowCell && borrowCell.v === className && (!lendCellCheck || !lendCellCheck.v)) {
-                        availablePeriods.push({day, period});
+                        // Parse schedule for each teacher
+                        for (let day = 1; day <= 6; day++) {
+                            this.scheduleData[teacher][day] = {};
+                            for (let period = 1; period <= 10; period++) {
+                                const column = this.getColumnForDayAndPeriod(day, period);
+                                const cell = sheet[XLSX.utils.encode_cell({c: column, r: row})];
+                                const className = cell ? cell.v : '';
+                                this.scheduleData[teacher][day][period] = className;
+                                if (className) this.classes.add(className);
+                            }
+                        }
                     }
                 }
             }
 
-            const combinedPeriods = generateAllCombinations(availablePeriods, borrowDetails.length, borrowDetails, borrowTeacherRow, className);
-            displayResult(borrowDetails, combinedPeriods, borrowTeacher, lendTeacher, className, borrowTeacherRow);
-        }
+            populateTeachersAndClasses() {
+                const borrowTeacherSelect = document.getElementById('borrowTeacher');
+                const lendTeacherSelect = document.getElementById('lendTeacher');
+                
+                // Clear existing options
+                borrowTeacherSelect.innerHTML = '<option value="">請選擇老師</option>';
+                lendTeacherSelect.innerHTML = '<option value="">請選擇老師</option>';
 
-        function getConsecutiveBlocks(teacherRow, className, day) {
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const blocks = [];
-            let currentBlock = [];
+                this.teachers.forEach(teacher => {
+                    const option1 = document.createElement('option');
+                    option1.value = teacher;
+                    option1.text = teacher;
+                    borrowTeacherSelect.add(option1);
 
-            for (let period = 1; period <= 10; period++) {
-                const column = getColumnForDayAndPeriod(day, period);
-                const cell = sheet[XLSX.utils.encode_cell({c: column, r: teacherRow})];
-                if (cell && cell.v === className) {
-                    currentBlock.push(period);
-                } else {
-                    if (currentBlock.length > 1) {
-                        blocks.push(currentBlock);
-                    }
-                    currentBlock = [];
-                }
-            }
-            if (currentBlock.length > 1) {
-                blocks.push(currentBlock);
-            }
-            return blocks;
-        }
-
-        function isPartOfConsecutiveBlock(period, blocks) {
-            return blocks.some(block => block.includes(period));
-        }
-
-        function generateAllCombinations(periods, borrowCount, borrowDetails, borrowTeacherRow, className) {
-            periods.sort((a, b) => a.day - b.day || a.period - b.period);
-            const singlePeriods = [];
-            const consecutivePairs = [];
-            const combinations = [];
-
-            const isBorrowDouble = borrowCount === 2 && borrowDetails[0].day === borrowDetails[1].day && borrowDetails[0].period + 1 === borrowDetails[1].period;
-
-            const dayBlocks = {};
-            for (let day = 1; day <= 6; day++) {
-                dayBlocks[day] = getConsecutiveBlocks(borrowTeacherRow, className, day);
-            }
-
-            periods.forEach(p => {
-                if (!isPartOfConsecutiveBlock(p.period, dayBlocks[p.day])) {
-                    singlePeriods.push(p);
-                }
-            });
-
-            for (let i = 0; i < periods.length - 1; i++) {
-                if (periods[i].day === periods[i + 1].day && periods[i].period + 1 === periods[i + 1].period) {
-                    consecutivePairs.push([periods[i], periods[i + 1]]);
-                }
-            }
-
-            if (borrowCount === 1) {
-                singlePeriods.forEach(p => combinations.push([{day: p.day, periods: [p.period], isConsecutive: false}]));
-                periods.forEach(p => {
-                    if (isPartOfConsecutiveBlock(p.period, dayBlocks[p.day])) {
-                        combinations.push([{day: p.day, periods: [p.period], isConsecutive: true}]);
-                    }
+                    const option2 = document.createElement('option');
+                    option2.value = teacher;
+                    option2.text = teacher;
+                    lendTeacherSelect.add(option2);
                 });
-            } else if (borrowCount === 2) {
-                if (isBorrowDouble) {
-                    consecutivePairs.forEach(pair => {
-                        combinations.push([{day: pair[0].day, periods: [pair[0].period, pair[1].period], isConsecutive: true}]);
+            }
+
+            updateAvailableOptions() {
+                const borrowTeacher = document.getElementById('borrowTeacher').value;
+                const lendTeacher = document.getElementById('lendTeacher').value;
+                
+                if (!borrowTeacher || !lendTeacher) return;
+
+                // Find common classes
+                const borrowClasses = new Set();
+                const lendClasses = new Set();
+
+                for (let day = 1; day <= 6; day++) {
+                    for (let period = 1; period <= 10; period++) {
+                        const borrowClass = this.scheduleData[borrowTeacher][day][period];
+                        const lendClass = this.scheduleData[lendTeacher][day][period];
+                        if (borrowClass) borrowClasses.add(borrowClass);
+                        if (lendClass) lendClasses.add(lendClass);
+                    }
+                }
+
+                const commonClasses = [...borrowClasses].filter(c => lendClasses.has(c)).sort();
+                const classSelect = document.getElementById('className');
+                classSelect.innerHTML = '<option value="">請選擇班別</option>';
+                commonClasses.forEach(className => {
+                    const option = document.createElement('option');
+                    option.value = className;
+                    option.text = className;
+                    classSelect.add(option);
+                });
+
+                this.displayRelevantSchedules();
+            }
+
+            displayRelevantSchedules() {
+                const borrowTeacher = document.getElementById('borrowTeacher').value;
+                const lendTeacher = document.getElementById('lendTeacher').value;
+                
+                if (!borrowTeacher || !lendTeacher) return;
+
+                const relevantTeachers = [borrowTeacher, lendTeacher];
+                this.displayScheduleTable(relevantTeachers);
+                document.getElementById('scheduleDisplay').classList.remove('hidden');
+            }
+
+            displayScheduleTable(teacherList) {
+                let html = '<table class="min-w-full bg-white bg-opacity-90 rounded-lg overflow-hidden"><thead class="bg-gray-100"><tr><th class="px-4 py-2 text-left">老師</th>';
+                
+                for (let day = 1; day <= 6; day++) {
+                    html += `<th colspan="10" class="px-2 py-2 text-center border-l-2 border-gray-300">DAY${day}</th>`;
+                }
+                html += '</tr><tr><th class="px-4 py-2"></th>';
+                
+                for (let day = 1; day <= 6; day++) {
+                    for (let period = 1; period <= 10; period++) {
+                        html += `<th class="schedule-cell px-1 py-1 text-xs text-center ${period === 1 ? 'border-l-2 border-gray-300' : ''}">${period}</th>`;
+                    }
+                }
+                html += '</tr></thead><tbody>';
+
+                teacherList.forEach((teacher, index) => {
+                    html += `<tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}"><td class="px-4 py-2 font-medium">${teacher}</td>`;
+                    for (let day = 1; day <= 6; day++) {
+                        for (let period = 1; period <= 10; period++) {
+                            const className = this.scheduleData[teacher][day][period];
+                            html += `<td class="schedule-cell px-1 py-1 text-xs text-center ${period === 1 ? 'border-l-2 border-gray-300' : ''}" 
+                                     data-teacher="${teacher}" data-day="${day}" data-period="${period}">${className}</td>`;
+                        }
+                    }
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table>';
+                document.getElementById('scheduleTable').innerHTML = html;
+            }
+
+            updateBorrowDays() {
+                const lendTeacher = document.getElementById('lendTeacher').value;
+                const borrowTeacher = document.getElementById('borrowTeacher').value;
+                const className = document.getElementById('className').value;
+                
+                if (!lendTeacher || !borrowTeacher || !className) return;
+
+                const borrowDaySelect = document.getElementById('borrowDay');
+                borrowDaySelect.innerHTML = '<option value="">請選擇日期</option>';
+
+                for (let day = 1; day <= 6; day++) {
+                    let hasValidPeriod = false;
+                    for (let period = 1; period <= 10; period++) {
+                        const lendClass = this.scheduleData[lendTeacher][day][period];
+                        
+                        if (lendClass === className) {
+                            hasValidPeriod = true;
+                            break;
+                        }
+                    }
+                    if (hasValidPeriod) {
+                        const option = document.createElement('option');
+                        option.value = day;
+                        option.text = `DAY${day}`;
+                        borrowDaySelect.add(option);
+                    }
+                }
+            }
+
+            updateBorrowPeriods() {
+                const borrowDay = document.getElementById('borrowDay').value;
+                const lendTeacher = document.getElementById('lendTeacher').value;
+                const className = document.getElementById('className').value;
+                
+                if (!borrowDay || !lendTeacher || !className) return;
+
+                const borrowPeriodSelect = document.getElementById('borrowPeriod');
+                borrowPeriodSelect.innerHTML = '';
+
+                for (let period = 1; period <= 10; period++) {
+                    const lendClass = this.scheduleData[lendTeacher][borrowDay][period];
+                    
+                    if (lendClass === className) {
+                        const option = document.createElement('option');
+                        option.value = period;
+                        option.text = `第${period}節`;
+                        borrowPeriodSelect.add(option);
+                    }
+                }
+            }
+
+            analyzeScheduling() {
+                const borrowTeacher = document.getElementById('borrowTeacher').value;
+                const lendTeacher = document.getElementById('lendTeacher').value;
+                const className = document.getElementById('className').value;
+                const borrowDay = parseInt(document.getElementById('borrowDay').value);
+                const borrowPeriods = Array.from(document.getElementById('borrowPeriod').selectedOptions).map(option => parseInt(option.value));
+
+                if (!borrowTeacher || !lendTeacher || !className || !borrowDay || borrowPeriods.length === 0) {
+                    alert('請填寫所有必要資訊');
+                    return;
+                }
+
+                // Find scheduling solutions
+                const solutions = this.findSchedulingSolutions({
+                    borrowTeacher,
+                    lendTeacher,
+                    className,
+                    borrowDay,
+                    borrowPeriods
+                });
+
+                this.displayResults(solutions);
+            }
+
+            // Check if periods are consecutive
+            arePeriodsConsecutive(periods) {
+                if (periods.length <= 1) return false;
+                const sorted = [...periods].sort((a, b) => a - b);
+                for (let i = 1; i < sorted.length; i++) {
+                    if (sorted[i] - sorted[i-1] !== 1) return false;
+                }
+                return true;
+            }
+
+            // Format consecutive periods as "8、9節" instead of "8節", "9節"
+            formatPeriodsRange(periods) {
+                if (!periods || periods.length === 0) return "";
+                
+                const sortedPeriods = [...periods].sort((a, b) => a - b);
+                
+                // Group consecutive periods
+                const groups = [];
+                let currentGroup = [sortedPeriods[0]];
+
+                for (let i = 1; i < sortedPeriods.length; i++) {
+                    if (sortedPeriods[i] === sortedPeriods[i-1] + 1) {
+                        currentGroup.push(sortedPeriods[i]);
+                    } else {
+                        groups.push([...currentGroup]);
+                        currentGroup = [sortedPeriods[i]];
+                    }
+                }
+                groups.push(currentGroup);
+                
+                // Format each group
+                return groups.map(group => {
+                    if (group.length === 1) {
+                        return `第${group[0]}節`;
+                    } else {
+                        return `第${group[0]}、${group[group.length-1]}節`;
+                    }
+                }).join('、');
+            }
+
+            findSchedulingSolutions(params) {
+                const { borrowTeacher, lendTeacher, className, borrowDay, borrowPeriods } = params;
+                
+                let solutions = [];
+
+                // Direct exchange solution with enhanced consecutive period logic
+                const directSolution = this.findDirectExchange(borrowTeacher, lendTeacher, className, borrowDay, borrowPeriods);
+                if (directSolution.length > 0) {
+                    solutions.push({
+                        type: 'direct',
+                        teachers: [borrowTeacher, lendTeacher],
+                        exchanges: directSolution,
+                        complexity: 1
                     });
                 }
-                const singleCombinations = [];
-                const combineSingle = (start, current) => {
-                    if (current.length === 2) {
-                        singleCombinations.push(current.map(p => ({
-                            day: p.day,
-                            periods: [p.period],
-                            isConsecutive: isPartOfConsecutiveBlock(p.period, dayBlocks[p.day])
-                        })));
-                        return;
-                    }
-                    for (let i = start; i < singlePeriods.length; i++) {
-                        combineSingle(i + 1, [...current, singlePeriods[i]]);
-                    }
-                };
-                combineSingle(0, []);
-                combinations.push(...singleCombinations);
+
+                // Cycle solutions (3-4 teachers)
+                const cycleSolutions = this.findCycleSolutions(borrowTeacher, lendTeacher, className, borrowDay, borrowPeriods);
+                solutions = solutions.concat(cycleSolutions);
+
+                return this.rankSolutions(solutions);
             }
 
-            return combinations;
-        }
-
-        function findTeacherRow(teacher) {
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const range = XLSX.utils.decode_range(sheet['!ref']);
-            for (let row = 5; row <= range.e.r; row++) {
-                const cell = sheet[XLSX.utils.encode_cell({c: 1, r: row})];
-                if (cell && cell.v === teacher) {
-                    return row;
+            findDirectExchange(borrowTeacher, lendTeacher, className, borrowDay, borrowPeriods) {
+                const exchanges = [];
+                const isConsecutiveBorrow = this.arePeriodsConsecutive(borrowPeriods);
+                
+                // Find all possible return slots
+                const returnSlots = [];
+                for (let day = 1; day <= 6; day++) {
+                    for (let period = 1; period <= 10; period++) {
+                        const borrowClass = this.scheduleData[borrowTeacher][day][period];
+                        const lendClass = this.scheduleData[lendTeacher][day][period];
+                        
+                        if (borrowClass === className && !lendClass) {
+                            returnSlots.push({day, period});
+                        }
+                    }
                 }
+
+                // If borrowing consecutive periods, prioritize consecutive return slots
+                if (isConsecutiveBorrow && borrowPeriods.length > 1) {
+                    // Find consecutive return slots
+                    const consecutiveReturnSlots = this.findConsecutiveSlots(returnSlots, borrowPeriods.length);
+                    
+                    if (consecutiveReturnSlots.length > 0) {
+                        // Use consecutive return slots first
+                        consecutiveReturnSlots.forEach(slotGroup => {
+                            // Create a single exchange for consecutive periods
+                            const periodsDesc = this.formatPeriodsRange(borrowPeriods);
+                            const returnPeriodsDesc = this.formatPeriodsRange(slotGroup.map(s => s.period));
+                            
+                            exchanges.push({
+                                borrower: borrowTeacher,
+                                lender: lendTeacher,
+                                className: className,
+                                borrowDay: borrowDay,
+                                borrowPeriods: [...borrowPeriods],
+                                returnDay: slotGroup[0].day,
+                                returnPeriods: slotGroup.map(s => s.period),
+                                isConsecutive: true,
+                                description: `${lendTeacher} 借 DAY${borrowDay} ${periodsDesc} ${className} 給 ${borrowTeacher}，${borrowTeacher} 還 DAY${slotGroup[0].day} ${returnPeriodsDesc} ${className} 給 ${lendTeacher} (連堂歸還)`
+                            });
+                        });
+                        
+                        // If we found consecutive slots, return them as the preferred solution
+                        if (exchanges.length > 0) {
+                            return exchanges;
+                        }
+                    }
+                }
+
+                // If no consecutive slots found or borrowing non-consecutive periods,
+                // try to find individual slots but still group them in the display
+                if (returnSlots.length >= borrowPeriods.length) {
+                    const usedSlots = new Set();
+                    const nonConsecutiveExchange = {
+                        borrower: borrowTeacher,
+                        lender: lendTeacher,
+                        className: className,
+                        borrowDay: borrowDay,
+                        borrowPeriods: [...borrowPeriods],
+                        returnDays: [],
+                        returnPeriods: [],
+                        isConsecutive: false
+                    };
+
+                    // Group by return day
+                    const slotsByDay = {};
+                    returnSlots.forEach(slot => {
+                        if (!slotsByDay[slot.day]) slotsByDay[slot.day] = [];
+                        slotsByDay[slot.day].push(slot);
+                    });
+
+                    // Try to find slots on the same day first
+                    const dayKeys = Object.keys(slotsByDay).sort((a, b) => slotsByDay[b].length - slotsByDay[a].length);
+                    
+                    for (const dayKey of dayKeys) {
+                        const day = parseInt(dayKey);
+                        const daySlots = slotsByDay[day];
+                        
+                        // Check if this day has enough slots for all periods
+                        if (daySlots.length >= borrowPeriods.length) {
+                            const returnPeriods = daySlots.slice(0, borrowPeriods.length).map(s => s.period);
+                            const borrowPeriodsDesc = this.formatPeriodsRange(borrowPeriods);
+                            const returnPeriodsDesc = this.formatPeriodsRange(returnPeriods);
+                            
+                            exchanges.push({
+                                borrower: borrowTeacher,
+                                lender: lendTeacher,
+                                className: className,
+                                borrowDay: borrowDay,
+                                borrowPeriods: [...borrowPeriods],
+                                returnDay: day,
+                                returnPeriods: returnPeriods,
+                                isConsecutive: this.arePeriodsConsecutive(returnPeriods),
+                                description: `${lendTeacher} 借 DAY${borrowDay} ${borrowPeriodsDesc} ${className} 給 ${borrowTeacher}，${borrowTeacher} 還 DAY${day} ${returnPeriodsDesc} ${className} 給 ${lendTeacher}`
+                            });
+                            
+                            return exchanges;
+                        }
+                    }
+
+                    // If we can't find enough slots on a single day, combine multiple days
+                    let remainingSlots = borrowPeriods.length;
+                    const returnDays = [];
+                    const returnPeriods = [];
+                    const dayPeriodPairs = [];
+                    
+                    for (const day in slotsByDay) {
+                        const slotsNeeded = Math.min(remainingSlots, slotsByDay[day].length);
+                        if (slotsNeeded > 0) {
+                            for (let i = 0; i < slotsNeeded; i++) {
+                                returnDays.push(parseInt(day));
+                                returnPeriods.push(slotsByDay[day][i].period);
+                                dayPeriodPairs.push({day: parseInt(day), period: slotsByDay[day][i].period});
+                            }
+                            remainingSlots -= slotsNeeded;
+                            
+                            if (remainingSlots === 0) break;
+                        }
+                    }
+
+                    if (remainingSlots === 0) {
+                        // Group day-periods by day for better display
+                        const returnByDay = {};
+                        dayPeriodPairs.forEach(pair => {
+                            if (!returnByDay[pair.day]) returnByDay[pair.day] = [];
+                            returnByDay[pair.day].push(pair.period);
+                        });
+
+                        // Create description
+                        const borrowPeriodsDesc = this.formatPeriodsRange(borrowPeriods);
+                        let returnDesc = "";
+                        
+                        Object.keys(returnByDay).forEach((day, index) => {
+                            const periodsDesc = this.formatPeriodsRange(returnByDay[day]);
+                            returnDesc += `DAY${day} ${periodsDesc}`;
+                            if (index < Object.keys(returnByDay).length - 1) {
+                                returnDesc += "、";
+                            }
+                        });
+
+                        exchanges.push({
+                            borrower: borrowTeacher,
+                            lender: lendTeacher,
+                            className: className,
+                            borrowDay: borrowDay,
+                            borrowPeriods: [...borrowPeriods],
+                            returnDays: returnDays,
+                            returnPeriods: returnPeriods,
+                            isConsecutive: false,
+                            description: `${lendTeacher} 借 DAY${borrowDay} ${borrowPeriodsDesc} ${className} 給 ${borrowTeacher}，${borrowTeacher} 還 ${returnDesc} ${className} 給 ${lendTeacher}`
+                        });
+                    }
+                }
+
+                return exchanges;
             }
-            return -1;
-        }
 
-        function getColumnForDayAndPeriod(day, period) {
-            const dayOffset = (day - 1) * 10;
-            return 2 + dayOffset + period - 1;
-        }
+            findConsecutiveSlots(slots, requiredCount) {
+                const consecutiveGroups = [];
+                
+                // Group slots by day
+                const slotsByDay = {};
+                slots.forEach(slot => {
+                    if (!slotsByDay[slot.day]) {
+                        slotsByDay[slot.day] = [];
+                    }
+                    slotsByDay[slot.day].push(slot);
+                });
 
-        function formatPeriods(periods, isConsecutive) {
-            if (periods.length === 1) {
-                return `第${periods[0]}節${isConsecutive ? '（連堂）' : ''}`;
-            } else if (periods.length === 2 && periods[0] + 1 === periods[1]) {
-                return `第${periods[0]}至${periods[1]}節`;
-            } else {
-                return periods.map(p => `第${p}節`).join(', ');
+                // Check each day for consecutive periods
+                Object.values(slotsByDay).forEach(daySlots => {
+                    daySlots.sort((a, b) => a.period - b.period);
+                    
+                    for (let i = 0; i <= daySlots.length - requiredCount; i++) {
+                        const group = [];
+                        let isConsecutive = true;
+                        
+                        for (let j = 0; j < requiredCount; j++) {
+                            if (j > 0 && daySlots[i + j].period !== daySlots[i + j - 1].period + 1) {
+                                isConsecutive = false;
+                                break;
+                            }
+                            group.push(daySlots[i + j]);
+                        }
+                        
+                        if (isConsecutive) {
+                            consecutiveGroups.push(group);
+                        }
+                    }
+                });
+
+                return consecutiveGroups;
             }
-        }
 
-        function displayResult(borrowDetails, availableCombinations, borrowTeacher, lendTeacher, className, borrowTeacherRow) {
-            const resultDiv = document.getElementById('result');
-            let html = '<h2>調堂詳情：</h2><table><tr><th>借出老師</th><th>班別</th><th>借出上課日</th><th>借出課節</th><th class="double-border">借入老師</th><th>歸還上課日</th><th>歸還課節</th></tr>';
+            findCycleSolutions(borrowTeacher, lendTeacher, className, borrowDay, borrowPeriods) {
+                const solutions = [];
+                const isConsecutiveBorrow = this.arePeriodsConsecutive(borrowPeriods);
+                
+                // Try 3-teacher cycles
+                for (const thirdTeacher of this.teachers) {
+                    if (thirdTeacher === borrowTeacher || thirdTeacher === lendTeacher) continue;
 
-            const borrowDay = borrowDetails[0].day;
-            const borrowPeriods = borrowDetails.map(b => b.period).sort((a, b) => a - b);
-            const borrowPeriodStr = formatPeriods(borrowPeriods, false);
+                    const cycle3 = this.createThreeTeacherCycle(borrowTeacher, lendTeacher, thirdTeacher, className, borrowDay, borrowPeriods);
+                    if (cycle3) {
+                        solutions.push({
+                            type: 'cycle',
+                            teachers: [borrowTeacher, lendTeacher, thirdTeacher],
+                            exchanges: cycle3,
+                            complexity: 3
+                        });
+                    }
 
-            const dayBlocks = {};
-            for (let day = 1; day <= 6; day++) {
-                dayBlocks[day] = getConsecutiveBlocks(borrowTeacherRow, className, day);
+                    // Try 4-teacher cycles
+                    for (const fourthTeacher of this.teachers) {
+                        if (fourthTeacher === borrowTeacher || fourthTeacher === lendTeacher || fourthTeacher === thirdTeacher) continue;
+
+                        const cycle4 = this.createFourTeacherCycle(borrowTeacher, lendTeacher, thirdTeacher, fourthTeacher, className, borrowDay, borrowPeriods);
+                        if (cycle4) {
+                            solutions.push({
+                                type: 'cycle',
+                                teachers: [borrowTeacher, lendTeacher, thirdTeacher, fourthTeacher],
+                                exchanges: cycle4,
+                                complexity: 4
+                            });
+                        }
+                    }
+                }
+
+                return solutions;
             }
 
-            availableCombinations.forEach(comb => {
-                let availDayStr = '';
-                let availPeriodStr = '';
-                if (comb.length === 1 && comb[0].periods.length === 2) {
-                    availDayStr = `DAY${comb[0].day}`;
-                    availPeriodStr = formatPeriods(comb[0].periods, comb[0].isConsecutive);
+            createThreeTeacherCycle(teacherA, teacherB, teacherC, className, borrowDay, borrowPeriods) {
+                const exchanges = [];
+                const isConsecutiveBorrow = this.arePeriodsConsecutive(borrowPeriods);
+                
+                // A←B←C←A cycle
+                const bToAValid = borrowPeriods.every(period => {
+                    return this.scheduleData[teacherB][borrowDay][period] === className;
+                });
+                
+                if (!bToAValid) return null;
+
+                // Find slots for C→B and A→C
+                let cToBSlots = [];
+                let aToCSlots = [];
+                
+                for (let day = 1; day <= 6; day++) {
+                    for (let period = 1; period <= 10; period++) {
+                        const classB = this.scheduleData[teacherB][day][period];
+                        const classC = this.scheduleData[teacherC][day][period];
+                        const classA = this.scheduleData[teacherA][day][period];
+                        
+                        if (!classB && classC === className) {
+                            cToBSlots.push({day, period});
+                        }
+                        
+                        if (classA === className && !classC) {
+                            aToCSlots.push({day, period});
+                        }
+                    }
+                }
+
+                // For consecutive periods, try to find consecutive slots for each exchange
+                if (isConsecutiveBorrow && borrowPeriods.length > 1) {
+                    // Find consecutive slots for C→B
+                    const consecutiveCToBSlots = this.findConsecutiveSlots(cToBSlots, borrowPeriods.length);
+                    
+                    // Find consecutive slots for A→C
+                    const consecutiveAToCSlots = this.findConsecutiveSlots(aToCSlots, borrowPeriods.length);
+                    
+                    if (consecutiveCToBSlots.length > 0 && consecutiveAToCSlots.length > 0) {
+                        // Format periods for display
+                        const borrowPeriodsDesc = this.formatPeriodsRange(borrowPeriods);
+                        const cToBPeriodsDesc = this.formatPeriodsRange(consecutiveCToBSlots[0].map(s => s.period));
+                        const aToCPeriodsDesc = this.formatPeriodsRange(consecutiveAToCSlots[0].map(s => s.period));
+                        
+                        // B→A exchange (borrowing)
+                        exchanges.push({
+                            borrower: teacherA,
+                            lender: teacherB,
+                            className: className,
+                            borrowDay: borrowDay,
+                            borrowPeriods: [...borrowPeriods],
+                            isConsecutive: true,
+                            description: `${teacherB} 借 DAY${borrowDay} ${borrowPeriodsDesc} ${className} 給 ${teacherA}`
+                        });
+                        
+                        // C→B exchange
+                        exchanges.push({
+                            borrower: teacherB,
+                            lender: teacherC,
+                            className: className,
+                            borrowDay: consecutiveCToBSlots[0][0].day,
+                            borrowPeriods: consecutiveCToBSlots[0].map(s => s.period),
+                            isConsecutive: true,
+                            description: `${teacherC} 借 DAY${consecutiveCToBSlots[0][0].day} ${cToBPeriodsDesc} ${className} 給 ${teacherB}`
+                        });
+                        
+                        // A→C exchange
+                        exchanges.push({
+                            borrower: teacherC,
+                            lender: teacherA,
+                            className: className,
+                            borrowDay: consecutiveAToCSlots[0][0].day,
+                            borrowPeriods: consecutiveAToCSlots[0].map(s => s.period),
+                            isConsecutive: true,
+                            description: `${teacherA} 借 DAY${consecutiveAToCSlots[0][0].day} ${aToCPeriodsDesc} ${className} 給 ${teacherC}`
+                        });
+                        
+                        return exchanges;
+                    }
+                }
+
+                // If consecutive slots not found or not required, use individual slots
+                if (cToBSlots.length >= borrowPeriods.length && aToCSlots.length >= borrowPeriods.length) {
+                    // Group slots by day
+                    const cToBByDay = this.groupSlotsByDay(cToBSlots);
+                    const aToCByDay = this.groupSlotsByDay(aToCSlots);
+                    
+                    // Find days with enough slots
+                    let cToBDay = null;
+                    let cToBPeriods = [];
+                    for (const day in cToBByDay) {
+                        if (cToBByDay[day].length >= borrowPeriods.length) {
+                            cToBDay = parseInt(day);
+                            cToBPeriods = cToBByDay[day].slice(0, borrowPeriods.length).map(s => s.period);
+                            break;
+                        }
+                    }
+                    
+                    let aToCDay = null;
+                    let aToCPeriods = [];
+                    for (const day in aToCByDay) {
+                        if (aToCByDay[day].length >= borrowPeriods.length) {
+                            aToCDay = parseInt(day);
+                            aToCPeriods = aToCByDay[day].slice(0, borrowPeriods.length).map(s => s.period);
+                            break;
+                        }
+                    }
+                    
+                    if (cToBDay && aToCDay) {
+                        // Format periods for display
+                        const borrowPeriodsDesc = this.formatPeriodsRange(borrowPeriods);
+                        const cToBPeriodsDesc = this.formatPeriodsRange(cToBPeriods);
+                        const aToCPeriodsDesc = this.formatPeriodsRange(aToCPeriods);
+                        
+                        // B→A exchange (borrowing)
+                        exchanges.push({
+                            borrower: teacherA,
+                            lender: teacherB,
+                            className: className,
+                            borrowDay: borrowDay,
+                            borrowPeriods: [...borrowPeriods],
+                            isConsecutive: isConsecutiveBorrow,
+                            description: `${teacherB} 借 DAY${borrowDay} ${borrowPeriodsDesc} ${className} 給 ${teacherA}`
+                        });
+                        
+                        // C→B exchange
+                        exchanges.push({
+                            borrower: teacherB,
+                            lender: teacherC,
+                            className: className,
+                            borrowDay: cToBDay,
+                            borrowPeriods: cToBPeriods,
+                            isConsecutive: this.arePeriodsConsecutive(cToBPeriods),
+                            description: `${teacherC} 借 DAY${cToBDay} ${cToBPeriodsDesc} ${className} 給 ${teacherB}`
+                        });
+                        
+                        // A→C exchange
+                        exchanges.push({
+                            borrower: teacherC,
+                            lender: teacherA,
+                            className: className,
+                            borrowDay: aToCDay,
+                            borrowPeriods: aToCPeriods,
+                            isConsecutive: this.arePeriodsConsecutive(aToCPeriods),
+                            description: `${teacherA} 借 DAY${aToCDay} ${aToCPeriodsDesc} ${className} 給 ${teacherC}`
+                        });
+                        
+                        return exchanges;
+                    }
+                }
+
+                return null;
+            }
+
+            groupSlotsByDay(slots) {
+                const slotsByDay = {};
+                slots.forEach(slot => {
+                    if (!slotsByDay[slot.day]) {
+                        slotsByDay[slot.day] = [];
+                    }
+                    slotsByDay[slot.day].push(slot);
+                });
+                return slotsByDay;
+            }
+
+            createFourTeacherCycle(teacherA, teacherB, teacherC, teacherD, className, borrowDay, borrowPeriods) {
+                const exchanges = [];
+                const isConsecutiveBorrow = this.arePeriodsConsecutive(borrowPeriods);
+                
+                // A←B←C←D←A cycle
+                const bToAValid = borrowPeriods.every(period => {
+                    return this.scheduleData[teacherB][borrowDay][period] === className;
+                });
+                
+                if (!bToAValid) return null;
+
+                // Find slots for all connections in the cycle
+                let cToBSlots = [];
+                let dToCSlots = [];
+                let aToDSlots = [];
+                
+                for (let day = 1; day <= 6; day++) {
+                    for (let period = 1; period <= 10; period++) {
+                        const classB = this.scheduleData[teacherB][day][period];
+                        const classC = this.scheduleData[teacherC][day][period];
+                        const classD = this.scheduleData[teacherD][day][period];
+                        const classA = this.scheduleData[teacherA][day][period];
+                        
+                        if (!classB && classC === className) {
+                            cToBSlots.push({day, period});
+                        }
+                        
+                        if (!classC && classD === className) {
+                            dToCSlots.push({day, period});
+                        }
+                        
+                        if (classA === className && !classD) {
+                            aToDSlots.push({day, period});
+                        }
+                    }
+                }
+
+                // For consecutive periods, try to find consecutive slots for each exchange
+                if (isConsecutiveBorrow && borrowPeriods.length > 1) {
+                    const consecutiveCToBSlots = this.findConsecutiveSlots(cToBSlots, borrowPeriods.length);
+                    const consecutiveDToCSlots = this.findConsecutiveSlots(dToCSlots, borrowPeriods.length);
+                    const consecutiveAToDSlots = this.findConsecutiveSlots(aToDSlots, borrowPeriods.length);
+                    
+                    if (consecutiveCToBSlots.length > 0 && consecutiveDToCSlots.length > 0 && consecutiveAToDSlots.length > 0) {
+                        // Format periods for display
+                        const borrowPeriodsDesc = this.formatPeriodsRange(borrowPeriods);
+                        const cToBPeriodsDesc = this.formatPeriodsRange(consecutiveCToBSlots[0].map(s => s.period));
+                        const dToCPeriodsDesc = this.formatPeriodsRange(consecutiveDToCSlots[0].map(s => s.period));
+                        const aToDPeriodsDesc = this.formatPeriodsRange(consecutiveAToDSlots[0].map(s => s.period));
+                        
+                        // B→A exchange (borrowing)
+                        exchanges.push({
+                            borrower: teacherA,
+                            lender: teacherB,
+                            className: className,
+                            borrowDay: borrowDay,
+                            borrowPeriods: [...borrowPeriods],
+                            isConsecutive: true,
+                            description: `${teacherB} 借 DAY${borrowDay} ${borrowPeriodsDesc} ${className} 給 ${teacherA}`
+                        });
+                        
+                        // C→B exchange
+                        exchanges.push({
+                            borrower: teacherB,
+                            lender: teacherC,
+                            className: className,
+                            borrowDay: consecutiveCToBSlots[0][0].day,
+                            borrowPeriods: consecutiveCToBSlots[0].map(s => s.period),
+                            isConsecutive: true,
+                            description: `${teacherC} 借 DAY${consecutiveCToBSlots[0][0].day} ${cToBPeriodsDesc} ${className} 給 ${teacherB}`
+                        });
+                        
+                        // D→C exchange
+                        exchanges.push({
+                            borrower: teacherC,
+                            lender: teacherD,
+                            className: className,
+                            borrowDay: consecutiveDToCSlots[0][0].day,
+                            borrowPeriods: consecutiveDToCSlots[0].map(s => s.period),
+                            isConsecutive: true,
+                            description: `${teacherD} 借 DAY${consecutiveDToCSlots[0][0].day} ${dToCPeriodsDesc} ${className} 給 ${teacherC}`
+                        });
+                        
+                        // A→D exchange
+                        exchanges.push({
+                            borrower: teacherD,
+                            lender: teacherA,
+                            className: className,
+                            borrowDay: consecutiveAToDSlots[0][0].day,
+                            borrowPeriods: consecutiveAToDSlots[0].map(s => s.period),
+                            isConsecutive: true,
+                            description: `${teacherA} 借 DAY${consecutiveAToDSlots[0][0].day} ${aToDPeriodsDesc} ${className} 給 ${teacherD}`
+                        });
+                        
+                        return exchanges;
+                    }
+                }
+
+                // If consecutive slots not found or not required, use individual slots
+                if (cToBSlots.length >= borrowPeriods.length && 
+                    dToCSlots.length >= borrowPeriods.length && 
+                    aToDSlots.length >= borrowPeriods.length) {
+                    
+                    // Group slots by day
+                    const cToBByDay = this.groupSlotsByDay(cToBSlots);
+                    const dToCByDay = this.groupSlotsByDay(dToCSlots);
+                    const aToDByDay = this.groupSlotsByDay(aToDSlots);
+                    
+                    // Find days with enough slots
+                    let cToBDay = null, dToCDay = null, aToDDay = null;
+                    let cToBPeriods = [], dToCPeriods = [], aToDPeriods = [];
+                    
+                    for (const day in cToBByDay) {
+                        if (cToBByDay[day].length >= borrowPeriods.length) {
+                            cToBDay = parseInt(day);
+                            cToBPeriods = cToBByDay[day].slice(0, borrowPeriods.length).map(s => s.period);
+                            break;
+                        }
+                    }
+                    
+                    for (const day in dToCByDay) {
+                        if (dToCByDay[day].length >= borrowPeriods.length) {
+                            dToCDay = parseInt(day);
+                            dToCPeriods = dToCByDay[day].slice(0, borrowPeriods.length).map(s => s.period);
+                            break;
+                        }
+                    }
+                    
+                    for (const day in aToDByDay) {
+                        if (aToDByDay[day].length >= borrowPeriods.length) {
+                            aToDDay = parseInt(day);
+                            aToDPeriods = aToDByDay[day].slice(0, borrowPeriods.length).map(s => s.period);
+                            break;
+                        }
+                    }
+                    
+                    if (cToBDay && dToCDay && aToDDay) {
+                        // Format periods for display
+                        const borrowPeriodsDesc = this.formatPeriodsRange(borrowPeriods);
+                        const cToBPeriodsDesc = this.formatPeriodsRange(cToBPeriods);
+                        const dToCPeriodsDesc = this.formatPeriodsRange(dToCPeriods);
+                        const aToDPeriodsDesc = this.formatPeriodsRange(aToDPeriods);
+                        
+                        // B→A exchange (borrowing)
+                        exchanges.push({
+                            borrower: teacherA,
+                            lender: teacherB,
+                            className: className,
+                            borrowDay: borrowDay,
+                            borrowPeriods: [...borrowPeriods],
+                            isConsecutive: isConsecutiveBorrow,
+                            description: `${teacherB} 借 DAY${borrowDay} ${borrowPeriodsDesc} ${className} 給 ${teacherA}`
+                        });
+                        
+                        // C→B exchange
+                        exchanges.push({
+                            borrower: teacherB,
+                            lender: teacherC,
+                            className: className,
+                            borrowDay: cToBDay,
+                            borrowPeriods: cToBPeriods,
+                            isConsecutive: this.arePeriodsConsecutive(cToBPeriods),
+                            description: `${teacherC} 借 DAY${cToBDay} ${cToBPeriodsDesc} ${className} 給 ${teacherB}`
+                        });
+                        
+                        // D→C exchange
+                        exchanges.push({
+                            borrower: teacherC,
+                            lender: teacherD,
+                            className: className,
+                            borrowDay: dToCDay,
+                            borrowPeriods: dToCPeriods,
+                            isConsecutive: this.arePeriodsConsecutive(dToCPeriods),
+                            description: `${teacherD} 借 DAY${dToCDay} ${dToCPeriodsDesc} ${className} 給 ${teacherC}`
+                        });
+                        
+                        // A→D exchange
+                        exchanges.push({
+                            borrower: teacherD,
+                            lender: teacherA,
+                            className: className,
+                            borrowDay: aToDDay,
+                            borrowPeriods: aToDPeriods,
+                            isConsecutive: this.arePeriodsConsecutive(aToDPeriods),
+                            description: `${teacherA} 借 DAY${aToDDay} ${aToDPeriodsDesc} ${className} 給 ${teacherD}`
+                        });
+                        
+                        return exchanges;
+                    }
+                }
+
+                return null;
+            }
+
+            rankSolutions(solutions) {
+                return solutions.sort((a, b) => {
+                    // Prefer solutions with consecutive periods first
+                    const aHasConsecutive = a.exchanges.some(ex => ex.isConsecutive);
+                    const bHasConsecutive = b.exchanges.some(ex => ex.isConsecutive);
+                    
+                    if (aHasConsecutive && !bHasConsecutive) return -1;
+                    if (!aHasConsecutive && bHasConsecutive) return 1;
+                    
+                    // Then prefer simpler solutions
+                    if (a.complexity !== b.complexity) {
+                        return a.complexity - b.complexity;
+                    }
+                    
+                    // Then prefer fewer exchanges
+                    return a.exchanges.length - b.exchanges.length;
+                });
+            }
+
+            displayResults(solutions) {
+                document.getElementById('analysisResults').classList.remove('hidden');
+                
+                this.displayChainSolutions(solutions);
+                this.displayConflictAnalysis(solutions);
+                this.displayDetailedResults(solutions);
+            }
+
+            displayChainSolutions(solutions) {
+                const container = document.getElementById('chainSolutions');
+                container.innerHTML = '';
+
+                if (solutions.length === 0) {
+                    container.innerHTML = '<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">未找到可行的調堂方案</div>';
+                    return;
+                }
+
+                solutions.forEach((solution, index) => {
+                    const solutionDiv = document.createElement('div');
+                    solutionDiv.className = 'bg-white bg-opacity-90 rounded-lg p-6 border-l-4 border-blue-500 mb-4';
+                    
+                    let typeLabel = '';
+                    let typeColor = '';
+                    switch (solution.type) {
+                        case 'direct':
+                            typeLabel = '直接';
+                            typeColor = 'text-green-600 bg-green-100';
+                            break;
+                        case 'cycle':
+                            typeLabel = '循環';
+                            typeColor = 'text-blue-600 bg-blue-100';
+                            break;
+                    }
+
+                    // Create cycle chain representation for cycles
+                    let teacherChainHtml = '';
+                    if (solution.type === 'cycle') {
+                        teacherChainHtml = solution.teachers.map((teacher, i) => {
+                            return `<div class="teacher-box">${teacher}</div>${i < solution.teachers.length - 1 ? '<i class="chain-arrow fas fa-arrow-right"></i>' : ''}`;
+                        }).join('');
+                        teacherChainHtml += '<i class="chain-arrow fas fa-arrow-right"></i><div class="teacher-box">' + solution.teachers[0] + '</div>';
+                    } else {
+                        teacherChainHtml = solution.teachers.map((teacher, i) => {
+                            return `<div class="teacher-box">${teacher}</div>${i < solution.teachers.length - 1 ? '<i class="chain-arrow fas fa-arrow-right"></i>' : ''}`;
+                        }).join('');
+                    }
+
+                    // Create detailed exchange list - Group by borrowDay and periods for direct exchange
+                    let exchangeListHtml = '<div class="mt-4"><h4 class="font-semibold mb-2">調堂詳情：</h4>';
+                    
+                    // Group exchanges for display
+                    if (solution.type === 'direct' && solution.exchanges.length > 0) {
+                        const exchange = solution.exchanges[0]; // For direct exchanges we now group them
+                        const consecutiveClass = exchange.isConsecutive ? 'consecutive-period' : '';
+                        exchangeListHtml += `
+                            <div class="exchange-flow ${consecutiveClass}">
+                                <div class="text-sm">
+                                    <strong>調堂：</strong> ${exchange.description}
+                                    ${exchange.isConsecutive ? ' <i class="fas fa-link text-yellow-600"></i>' : ''}
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // For cycle exchanges, show each exchange
+                        solution.exchanges.forEach((exchange, i) => {
+                            const consecutiveClass = exchange.isConsecutive ? 'consecutive-period' : '';
+                            exchangeListHtml += `
+                                <div class="exchange-flow ${consecutiveClass}">
+                                    <div class="text-sm">
+                                        <strong>調堂 ${i + 1}:</strong> ${exchange.description}
+                                        ${exchange.isConsecutive ? ' <i class="fas fa-link text-yellow-600"></i>' : ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+                    exchangeListHtml += '</div>';
+
+                    solutionDiv.innerHTML = `
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold">方案 ${index + 1}: <span class="${typeColor} px-2 py-1 rounded text-sm">${typeLabel}</span></h3>
+                            <span class="text-sm text-gray-600">複雜度: ${solution.complexity} | 調堂次數: ${solution.exchanges.length}</span>
+                        </div>
+                        <div class="mb-4">
+                            <h4 class="font-semibold mb-2">參與老師：</h4>
+                            <div class="flex items-center justify-center">
+                                ${teacherChainHtml}
+                            </div>
+                        </div>
+                        ${exchangeListHtml}
+                    `;
+                    
+                    container.appendChild(solutionDiv);
+                });
+            }
+
+            displayConflictAnalysis(solutions) {
+                const container = document.getElementById('conflictAnalysis');
+                
+                if (solutions.length > 0) {
+                    const hasConsecutive = solutions.some(sol => sol.exchanges.some(ex => ex.isConsecutive));
+                    const consecutiveText = hasConsecutive ? '，包含連堂優先方案' : '';
+                    
+                    container.innerHTML = `
+                        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            成功找到 ${solutions.length} 個可行方案${consecutiveText}，無嚴重衝突
+                        </div>
+                    `;
                 } else {
-                    availDayStr = comb.map(c => `DAY${c.day}`).join(', ');
-                    availPeriodStr = comb.map(c => formatPeriods(c.periods, c.isConsecutive)).join(', ');
+                    container.innerHTML = `
+                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            無法找到可行的調堂方案，可能的原因：
+                            <ul class="list-disc list-inside mt-2 ml-4">
+                                <li>相關老師的空堂時間不足</li>
+                                <li>指定班別的課節安排衝突</li>
+                                <li>調堂需求複雜，需要更多老師參與</li>
+                            </ul>
+                        </div>
+                    `;
                 }
-                if (!(availDayStr === `DAY${borrowDay}` && availPeriodStr === borrowPeriodStr)) {
-                    html += `<tr><td>${lendTeacher}</td><td>${className}</td><td>DAY${borrowDay}</td><td>${borrowPeriodStr}</td><td class="double-border">${borrowTeacher}</td><td>${availDayStr}</td><td>${availPeriodStr}</td></tr>`;
+            }
+
+            displayDetailedResults(solutions) {
+                const container = document.getElementById('detailedResults');
+                
+                if (solutions.length === 0) {
+                    container.innerHTML = '<div class="text-center text-gray-500">無詳細記錄</div>';
+                    return;
                 }
+
+                let html = '<table class="min-w-full bg-white bg-opacity-90 rounded-lg overflow-hidden"><thead class="bg-gray-100"><tr>';
+                html += '<th class="px-4 py-2 text-left">方案</th>';
+                html += '<th class="px-4 py-2 text-left">調堂類型</th>';
+                html += '<th class="px-4 py-2 text-left">借出老師</th>';
+                html += '<th class="px-4 py-2 text-left">借入老師</th>';
+                html += '<th class="px-4 py-2 text-left">班別</th>';
+                html += '<th class="px-4 py-2 text-left">詳細說明</th>';
+                html += '</tr></thead><tbody>';
+
+                // Process solutions to merge consecutive period exchanges
+                solutions.forEach((solution, solutionIndex) => {
+                    // Group exchanges by lender+borrower+day
+                    const groupedExchanges = {};
+                    
+                    solution.exchanges.forEach(exchange => {
+                        const key = `${exchange.lender}-${exchange.borrower}-${exchange.borrowDay || exchange.returnDay || 'unknown'}`;
+                        
+                        if (!groupedExchanges[key]) {
+                            groupedExchanges[key] = {
+                                lender: exchange.lender,
+                                borrower: exchange.borrower,
+                                className: exchange.className,
+                                day: exchange.borrowDay || exchange.returnDay,
+                                periods: exchange.borrowPeriods || [exchange.borrowPeriod] || exchange.returnPeriods || [exchange.returnPeriod],
+                                isConsecutive: exchange.isConsecutive,
+                                description: exchange.description
+                            };
+                        }
+                    });
+                    
+                    // Display grouped exchanges
+                    Object.values(groupedExchanges).forEach((exchange, exchangeIndex) => {
+                        const exchangeType = solution.type === 'direct' ? '直接' : '循環';
+                        const typeColor = solution.type === 'direct' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
+                        const consecutiveIcon = exchange.isConsecutive ? '<i class="fas fa-link text-yellow-600 ml-2" title="連堂"></i>' : '';
+                        
+                        html += `<tr class="${exchangeIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">`;
+                        html += `<td class="px-4 py-2">${exchangeIndex === 0 ? `方案 ${solutionIndex + 1}` : ''}</td>`;
+                        html += `<td class="px-4 py-2"><span class="px-2 py-1 text-xs rounded-full ${typeColor}">${exchangeType}</span></td>`;
+                        html += `<td class="px-4 py-2">${exchange.lender || '未指定'}</td>`;
+                        html += `<td class="px-4 py-2">${exchange.borrower || '未指定'}</td>`;
+                        html += `<td class="px-4 py-2">${exchange.className || '未指定'}</td>`;
+                        html += `<td class="px-4 py-2">
+                            ${exchange.description}
+                            ${consecutiveIcon}
+                            <button class="view-schedule-icon" onclick="showScheduleModal(${JSON.stringify(solution.teachers).replace(/"/g, '&quot;')})" title="查看課表">
+                                <i class="fas fa-calendar-alt"></i>
+                            </button>
+                        </td>`;
+                        html += '</tr>';
+                    });
+                });
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            }
+
+            getColumnForDayAndPeriod(day, period) {
+                return 2 + (day - 1) * 10 + period - 1;
+            }
+        }
+
+        // Global functions for modal
+        function showScheduleModal(teachers) {
+            const modal = document.getElementById('scheduleModal');
+            const content = document.getElementById('modalScheduleContent');
+            
+            // Create schedule table for the specific teachers
+            let html = '<table class="min-w-full bg-white rounded-lg overflow-hidden border"><thead class="bg-gray-100"><tr><th class="px-4 py-2 text-left">老師</th>';
+            
+            for (let day = 1; day <= 6; day++) {
+                html += `<th colspan="10" class="px-2 py-2 text-center border-l-2 border-gray-300">DAY${day}</th>`;
+            }
+            html += '</tr><tr><th class="px-4 py-2"></th>';
+            
+            for (let day = 1; day <= 6; day++) {
+                for (let period = 1; period <= 10; period++) {
+                    html += `<th class="schedule-cell px-1 py-1 text-xs text-center ${period === 1 ? 'border-l-2 border-gray-300' : ''}">${period}</th>`;
+                }
+            }
+            html += '</tr></thead><tbody>';
+
+            teachers.forEach((teacher, index) => {
+                html += `<tr class="${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}"><td class="px-4 py-2 font-medium">${teacher}</td>`;
+                for (let day = 1; day <= 6; day++) {
+                    for (let period = 1; period <= 10; period++) {
+                        const className = app.scheduleData[teacher][day][period];
+                        html += `<td class="schedule-cell px-1 py-1 text-xs text-center ${period === 1 ? 'border-l-2 border-gray-300' : ''}">${className}</td>`;
+                    }
+                }
+                html += '</tr>';
             });
 
-            html += '</table>';
-            resultDiv.innerHTML = html;
+            html += '</tbody></table>';
+            content.innerHTML = html;
+            modal.style.display = 'block';
         }
+
+        function closeScheduleModal() {
+            document.getElementById('scheduleModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('scheduleModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Initialize the application
+        const app = new AdvancedSchedulingTool();
     </script>
 </body>
 </html>
